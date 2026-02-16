@@ -251,7 +251,11 @@
 
           <div class="space-y-6">
             <div v-for="(ex, idx) in exercises" :key="idx" class="rounded-lg border border-gray-100 p-4 space-y-3">
-              <p class="text-sm font-medium text-gray-700">{{ idx + 1 }}. {{ ex.prompt || ex.instruction }}</p>
+              <p class="text-sm font-medium text-gray-700">{{ idx + 1 }}. {{ ex.instruction || ex.prompt }}</p>
+              <p v-if="ex.question" class="text-sm text-gray-800 mt-1">{{ ex.question }}</p>
+              <span v-if="ex.register" class="inline-block mt-1 rounded-full px-2 py-0.5 text-xs font-medium"
+                :class="ex.register === 'formal' ? 'bg-purple-100 text-purple-700' : ex.register === 'informal' ? 'bg-cyan-100 text-cyan-700' : 'bg-gray-100 text-gray-500'"
+              >{{ ex.register === 'formal' ? 'formel (vous)' : ex.register === 'informal' ? 'informel (tu)' : ex.register }}</span>
 
               <!-- fill_blank -->
               <template v-if="ex.type === 'fill_blank'">
