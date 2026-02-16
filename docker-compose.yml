@@ -1,0 +1,33 @@
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - whisper
+    volumes:
+      - db-data:/app/data
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=sqlite:///data/coach.db
+      - WHISPER_URL=http://whisper:9000
+
+  whisper:
+    build: ./whisper
+    ports:
+      - "9000:9000"
+    environment:
+      - WHISPER_MODEL=base
+      - WHISPER_COMPUTE_TYPE=int8
+      - WHISPER_LANGUAGE=fr
+
+volumes:
+  db-data:
