@@ -251,8 +251,8 @@
 
           <div class="space-y-6">
             <div v-for="(ex, idx) in exercises" :key="idx" class="rounded-lg border border-gray-100 p-4 space-y-3">
-              <p class="text-sm font-medium text-gray-700">{{ idx + 1 }}. {{ ex.instruction || ex.prompt }}</p>
-              <p v-if="ex.question" class="text-sm text-gray-800 mt-1">{{ ex.question }}</p>
+              <p class="text-sm font-medium text-gray-700">{{ idx + 1 }}. {{ ex.instruction || ex.question || ex.prompt }}</p>
+              <p v-if="ex.question && ex.instruction" class="text-sm text-gray-800 mt-1">{{ ex.question }}</p>
               <span v-if="ex.register" class="inline-block mt-1 rounded-full px-2 py-0.5 text-xs font-medium"
                 :class="ex.register === 'formal' ? 'bg-purple-100 text-purple-700' : ex.register === 'informal' ? 'bg-cyan-100 text-cyan-700' : 'bg-gray-100 text-gray-500'"
               >{{ ex.register === 'formal' ? 'formel (vous)' : ex.register === 'informal' ? 'informel (tu)' : ex.register }}</span>
@@ -295,45 +295,101 @@
 
               <!-- reorder -->
               <template v-if="ex.type === 'reorder'">
-                <p class="text-xs text-gray-400 mb-2">Entrez les mots dans le bon ordre (numérotés) :</p>
-                <div class="flex flex-wrap gap-2 mb-3">
-                  <span
-                    v-for="(word, wIdx) in ex.words"
-                    :key="wIdx"
-                    class="rounded-lg bg-gray-100 px-3 py-1.5 text-sm text-gray-700"
+                <p class="text-xs text-gray-400 mb-3">Numérotez les répliques dans le bon ordre (1, 2, 3...) :</p>
+                <div class="space-y-2">
+                  <div
+                    v-for="(line, lIdx) in (ex.lines || [])"
+                    :key="lIdx"
+                    class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3"
                   >
-                    {{ word }}
-                  </span>
+                    <input
+                      v-model.number="exerciseAnswers[idx][lIdx]"
+                      type="number"
+                      min="1"
+                      :max="(ex.lines || []).length"
+                      class="w-12 rounded border border-gray-300 px-2 py-1 text-sm text-center focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                      :placeholder="String(lIdx + 1)"
+                    />
+                    <span class="text-sm text-gray-700">{{ line }}</span>
+                  </div>
                 </div>
-                <input
-                  v-model="exerciseAnswers[idx]"
-                  type="text"
-                  placeholder="Tapez les mots dans le bon ordre, séparés par des espaces"
-                  class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                />
               </template>
 
               <!-- match -->
               <template v-if="ex.type === 'match'">
-                <div class="grid grid-cols-2 gap-4">
-                  <div>
-                    <p class="text-xs font-medium text-gray-400 mb-2 uppercase">Colonne A</p>
-                    <div v-for="(item, mIdx) in ex.left" :key="mIdx" class="flex items-center gap-2 mb-2">
-                      <span class="text-sm text-gray-700 flex-1">{{ item }}</span>
-                      <select
-                        v-model="exerciseAnswers[idx][mIdx]"
-                        class="rounded border border-gray-300 px-2 py-1 text-sm focus:border-primary outline-none"
-                      >
-                        <option value="" disabled>--</option>
-                        <option v-for="(rItem, rIdx) in ex.right" :key="rIdx" :value="rItem">{{ rItem }}</option>
-                      </select>
-                    </div>
+                <div class="space-y-3">
+                  <div
+                    v-for="(pair, mIdx) in (ex.pairs || [])"
+                    :key="mIdx"
+                    class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3"
+                  >
+                    <span class="text-sm text-gray-800 flex-1 font-medium">{{ pair.informal }}</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                    <select
+                      v-model="exerciseAnswers[idx][mIdx]"
+                      class="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                    >
+                      <option value="" disabled>Choisir l'équivalent formel...</option>
+                      <option
+                        v-for="(opt, oIdx) in shuffledFormalOptions(ex.pairs)"
+                        :key="oIdx"
+                        :value="opt"
+                      >{{ opt }}</option>
+                    </select>
                   </div>
-                  <div>
-                    <p class="text-xs font-medium text-gray-400 mb-2 uppercase">Colonne B</p>
-                    <div v-for="item in ex.right" :key="item" class="mb-2 text-sm text-gray-700 py-1">
-                      {{ item }}
+                </div>
+              </template>
+
+              <!-- transform -->
+              <template v-if="ex.type === 'transform'">
+                <div class="space-y-3">
+                  <div
+                    v-for="(item, tIdx) in (ex.items || [])"
+                    :key="tIdx"
+                    class="rounded-lg border border-gray-200 bg-white px-4 py-3 space-y-2"
+                  >
+                    <div class="flex items-center gap-2">
+                      <span class="inline-block rounded-full px-2 py-0.5 text-xs font-medium"
+                        :class="item.source_register === 'formal' ? 'bg-purple-100 text-purple-700' : 'bg-cyan-100 text-cyan-700'"
+                      >{{ item.source_register === 'formal' ? 'formel' : 'informel' }}</span>
+                      <span class="text-sm text-gray-800 font-medium">{{ item.source }}</span>
                     </div>
+                    <div class="flex items-center gap-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                      </svg>
+                      <span class="inline-block rounded-full px-2 py-0.5 text-xs font-medium"
+                        :class="item.target_register === 'formal' ? 'bg-purple-100 text-purple-700' : 'bg-cyan-100 text-cyan-700'"
+                      >{{ item.target_register === 'formal' ? 'formel' : 'informel' }}</span>
+                    </div>
+                    <input
+                      v-model="exerciseAnswers[idx][tIdx]"
+                      type="text"
+                      :placeholder="`Transformez en ${item.target_register === 'formal' ? 'formel (vous)' : 'informel (tu)'}...`"
+                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                    />
+                  </div>
+                </div>
+              </template>
+
+              <!-- free_answer -->
+              <template v-if="ex.type === 'free_answer'">
+                <div class="space-y-3">
+                  <div
+                    v-for="(q, qIdx) in (ex.questions || [])"
+                    :key="qIdx"
+                    class="rounded-lg border border-gray-200 bg-white px-4 py-3 space-y-2"
+                  >
+                    <p class="text-sm text-gray-800 font-medium">{{ q.question }}</p>
+                    <p v-if="q.hint" class="text-xs text-gray-400 italic">Indice : {{ q.hint }}</p>
+                    <input
+                      v-model="exerciseAnswers[idx][qIdx]"
+                      type="text"
+                      placeholder="Votre réponse..."
+                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                    />
                   </div>
                 </div>
               </template>
@@ -462,12 +518,37 @@ watch(exercises, (exs) => {
       const blanks = (ex.template || '').match(/_{2,}|\[\.\.\.\]/g) || []
       return Array(blanks.length).fill('')
     }
+    if (ex.type === 'reorder') {
+      return Array((ex.lines || []).length).fill(null)
+    }
     if (ex.type === 'match') {
-      return Array(ex.left?.length || 0).fill('')
+      return Array((ex.pairs || []).length).fill('')
+    }
+    if (ex.type === 'transform') {
+      return Array((ex.items || []).length).fill('')
+    }
+    if (ex.type === 'free_answer') {
+      return Array((ex.questions || []).length).fill('')
     }
     return ''
   })
 }, { immediate: true })
+
+// Shuffle formal options for match exercises so they're not in the same order as informal
+const _shuffleCache = new Map()
+function shuffledFormalOptions(pairs) {
+  if (!pairs) return []
+  const key = pairs.map(p => p.formal).join('|')
+  if (_shuffleCache.has(key)) return _shuffleCache.get(key)
+  const options = pairs.map(p => p.formal)
+  // Simple Fisher-Yates shuffle
+  for (let i = options.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [options[i], options[j]] = [options[j], options[i]]
+  }
+  _shuffleCache.set(key, options)
+  return options
+}
 
 function parseBlanks(template) {
   if (!template) return [{ type: 'text', value: '' }]
