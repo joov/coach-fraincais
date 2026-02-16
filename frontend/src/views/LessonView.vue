@@ -76,11 +76,68 @@
               </div>
             </div>
           </div>
-          <!-- Transcription feedback -->
-          <div v-if="transcribeResult" class="mt-4 rounded-lg p-4 text-sm" :class="transcribeResult.match ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'">
-            <p><strong>Votre texte :</strong> {{ transcribeResult.transcription }}</p>
-            <p v-if="transcribeResult.score !== undefined"><strong>Score :</strong> {{ transcribeResult.score }}%</p>
+          <!-- Spinner while waiting -->
+          <div v-if="transcribing" class="mt-4 flex items-center gap-3 rounded-lg bg-blue-50 p-4 text-sm text-blue-700">
+            <svg class="h-5 w-5 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            Analyse en cours...
           </div>
+
+          <!-- Transcription result with word highlighting -->
+          <template v-if="transcribeResult && !transcribing">
+            <div class="mt-4 space-y-3">
+              <!-- Error -->
+              <div v-if="transcribeResult._error" class="rounded-lg bg-red-50 p-4 text-sm text-red-700">
+                Erreur : {{ transcribeResult._error }}
+              </div>
+
+              <template v-else>
+                <!-- Score bar -->
+                <div class="rounded-lg border border-gray-200 bg-white p-4">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium text-gray-700">Score</span>
+                    <span class="text-lg font-bold" :class="scoreColor(transcribeResult.comparison?.score)">
+                      {{ transcribeResult.comparison?.score ?? 0 }}%
+                    </span>
+                  </div>
+                  <div class="h-2.5 w-full rounded-full bg-gray-200 overflow-hidden">
+                    <div
+                      class="h-full rounded-full transition-all duration-500"
+                      :class="scoreBarColor(transcribeResult.comparison?.score)"
+                      :style="{ width: (transcribeResult.comparison?.score ?? 0) + '%' }"
+                    ></div>
+                  </div>
+                </div>
+
+                <!-- Word comparison -->
+                <div class="rounded-lg border border-gray-200 bg-white p-4">
+                  <p class="text-xs font-medium text-gray-400 uppercase mb-2">Comparaison mot à mot</p>
+                  <p class="text-sm leading-relaxed">
+                    <span v-for="(w, wIdx) in (transcribeResult.comparison?.words || [])" :key="wIdx">
+                      <span
+                        class="inline-block px-1 py-0.5 rounded mx-0.5 text-sm font-medium"
+                        :class="w.match ? 'bg-green-100 text-green-800' : w.partial ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800 line-through'"
+                        :title="w.match ? 'Correct' : w.spoken ? `Vous avez dit : ${w.spoken}` : 'Mot manquant'"
+                      >{{ w.word }}</span>
+                    </span>
+                  </p>
+                </div>
+
+                <!-- What you said -->
+                <div class="rounded-lg bg-gray-50 p-4 text-sm text-gray-600">
+                  <p><strong>Texte cible :</strong> {{ transcribeResult._targetText }}</p>
+                  <p class="mt-1"><strong>Votre texte :</strong> {{ transcribeResult.transcription || '(vide)' }}</p>
+                </div>
+
+                <!-- LLM feedback if available -->
+                <div v-if="transcribeResult.evaluation?.feedback" class="rounded-lg bg-blue-50 p-4 text-sm text-blue-800">
+                  <p>{{ transcribeResult.evaluation.feedback }}</p>
+                </div>
+              </template>
+            </div>
+          </template>
         </template>
 
         <!-- Step 1b: Dialogue formel -->
@@ -128,10 +185,63 @@
               </div>
             </div>
           </div>
-          <div v-if="transcribeResult" class="mt-4 rounded-lg p-4 text-sm" :class="transcribeResult.match ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'">
-            <p><strong>Votre texte :</strong> {{ transcribeResult.transcription }}</p>
-            <p v-if="transcribeResult.score !== undefined"><strong>Score :</strong> {{ transcribeResult.score }}%</p>
+          <!-- Spinner while waiting -->
+          <div v-if="transcribing" class="mt-4 flex items-center gap-3 rounded-lg bg-blue-50 p-4 text-sm text-blue-700">
+            <svg class="h-5 w-5 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            Analyse en cours...
           </div>
+
+          <!-- Transcription result with word highlighting -->
+          <template v-if="transcribeResult && !transcribing">
+            <div class="mt-4 space-y-3">
+              <div v-if="transcribeResult._error" class="rounded-lg bg-red-50 p-4 text-sm text-red-700">
+                Erreur : {{ transcribeResult._error }}
+              </div>
+
+              <template v-else>
+                <div class="rounded-lg border border-gray-200 bg-white p-4">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium text-gray-700">Score</span>
+                    <span class="text-lg font-bold" :class="scoreColor(transcribeResult.comparison?.score)">
+                      {{ transcribeResult.comparison?.score ?? 0 }}%
+                    </span>
+                  </div>
+                  <div class="h-2.5 w-full rounded-full bg-gray-200 overflow-hidden">
+                    <div
+                      class="h-full rounded-full transition-all duration-500"
+                      :class="scoreBarColor(transcribeResult.comparison?.score)"
+                      :style="{ width: (transcribeResult.comparison?.score ?? 0) + '%' }"
+                    ></div>
+                  </div>
+                </div>
+
+                <div class="rounded-lg border border-gray-200 bg-white p-4">
+                  <p class="text-xs font-medium text-gray-400 uppercase mb-2">Comparaison mot à mot</p>
+                  <p class="text-sm leading-relaxed">
+                    <span v-for="(w, wIdx) in (transcribeResult.comparison?.words || [])" :key="wIdx">
+                      <span
+                        class="inline-block px-1 py-0.5 rounded mx-0.5 text-sm font-medium"
+                        :class="w.match ? 'bg-green-100 text-green-800' : w.partial ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800 line-through'"
+                        :title="w.match ? 'Correct' : w.spoken ? `Vous avez dit : ${w.spoken}` : 'Mot manquant'"
+                      >{{ w.word }}</span>
+                    </span>
+                  </p>
+                </div>
+
+                <div class="rounded-lg bg-gray-50 p-4 text-sm text-gray-600">
+                  <p><strong>Texte cible :</strong> {{ transcribeResult._targetText }}</p>
+                  <p class="mt-1"><strong>Votre texte :</strong> {{ transcribeResult.transcription || '(vide)' }}</p>
+                </div>
+
+                <div v-if="transcribeResult.evaluation?.feedback" class="rounded-lg bg-blue-50 p-4 text-sm text-blue-800">
+                  <p>{{ transcribeResult.evaluation.feedback }}</p>
+                </div>
+              </template>
+            </div>
+          </template>
         </template>
 
         <!-- Step 2: Exercises -->
@@ -335,6 +445,7 @@ const exerciseResult = ref(null)
 const recordingTarget = ref(null)
 const recordingRegister = ref(null)
 const transcribeResult = ref(null)
+const transcribing = ref(false)
 
 // Completion
 const completing = ref(false)
@@ -374,6 +485,8 @@ async function toggleRecord(targetText, register) {
     // Stop and submit
     const blob = await stopRecording()
     recordingTarget.value = null
+    transcribeResult.value = null
+    transcribing.value = true
 
     const fd = new FormData()
     fd.append('file', blob, 'recording.webm')
@@ -382,9 +495,17 @@ async function toggleRecord(targetText, register) {
     fd.append('register', register)
 
     try {
-      transcribeResult.value = await postForm('/speech/transcribe', fd)
+      const result = await postForm('/speech/transcribe', fd)
+      transcribeResult.value = { ...result, _targetText: targetText }
     } catch (err) {
-      transcribeResult.value = { transcription: `Erreur : ${err.message}`, match: false }
+      transcribeResult.value = {
+        transcription: '',
+        comparison: { score: 0, words: [] },
+        _targetText: targetText,
+        _error: err.message,
+      }
+    } finally {
+      transcribing.value = false
     }
   } else {
     // Stop any other recording first
@@ -392,6 +513,7 @@ async function toggleRecord(targetText, register) {
       await stopRecording()
     }
     transcribeResult.value = null
+    transcribing.value = false
     recordingTarget.value = targetText
     recordingRegister.value = register
     await startRecording()
@@ -474,6 +596,20 @@ function renderGrammar(box) {
 function esc(s) {
   if (!s) return ''
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function scoreColor(score) {
+  if (score == null) return 'text-gray-400'
+  if (score >= 80) return 'text-green-600'
+  if (score >= 50) return 'text-yellow-600'
+  return 'text-red-600'
+}
+
+function scoreBarColor(score) {
+  if (score == null) return 'bg-gray-300'
+  if (score >= 80) return 'bg-green-500'
+  if (score >= 50) return 'bg-yellow-500'
+  return 'bg-red-500'
 }
 
 onMounted(async () => {
