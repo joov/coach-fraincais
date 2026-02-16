@@ -608,18 +608,83 @@ async function toggleRecord(targetText, register) {
 async function submitExercises() {
   submittingExercises.value = true
   exerciseResult.value = null
-  try {
-    const answers = exercises.value.map((ex, idx) => ({
+
+  const results = []
+  let correctCount = 0
+
+  for (let idx = 0; idx < exercises.value.length; idx++) {
+    const ex = exercises.value[idx]
+    const answer = exerciseAnswers.value[idx]
+
+    // Build the request body matching the backend AnswerRequest schema
+    const body = {
+      exercise_type: ex.type,
+      register: ex.register || 'informal',
       exercise_index: idx,
-      type: ex.type,
-      answer: exerciseAnswers.value[idx],
-    }))
-    exerciseResult.value = await post(`/exercises/${props.lessonId}/answer`, { answers })
-  } catch (err) {
-    exerciseResult.value = { all_correct: false, score: 0, feedback: [{ correct: false, message: err.message }] }
-  } finally {
-    submittingExercises.value = false
+    }
+
+    if (ex.type === 'fill_blank') {
+      body.answer_list = Array.isArray(answer) ? answer : []
+    } else if (ex.type === 'multiple_choice') {
+      // answer is the selected option string; backend expects the index
+      const selectedIdx = (ex.options || []).indexOf(answer)
+      body.answer_index = selectedIdx >= 0 ? selectedIdx : -1
+    } else if (ex.type === 'reorder') {
+      // answer is an array of numbers the user typed (1-based), convert to 0-based order
+      body.answer_order = Array.isArray(answer) ? answer.map(n => (n != null ? n - 1 : -1)) : []
+    } else if (ex.type === 'match') {
+      // answer is an array of selected formal strings; build pairs
+      const pairs = (ex.pairs || []).map((p, mIdx) => ({
+        informal: p.informal,
+        formal: Array.isArray(answer) ? (answer[mIdx] || '') : '',
+      }))
+      body.answer_pairs = pairs
+    } else if (ex.type === 'transform') {
+      // answer is an array of strings; join them
+      body.answer_text = Array.isArray(answer) ? answer.join(' | ') : String(answer || '')
+    } else if (ex.type === 'free_answer') {
+      body.answer_text = Array.isArray(answer) ? answer.join(' | ') : String(answer || '')
+    }
+
+    try {
+      const res = await post(`/exercises/${props.lessonId}/answer`, body)
+      const isCorrect = res.is_correct
+      if (isCorrect) correctCount++
+
+      // Build a user-friendly feedback message
+      let message = ''
+      if (ex.type === 'multiple_choice') {
+        const correctIdx = (ex.options || [])[exercises.value[idx]?.correct_index]
+        message = isCorrect
+          ? (ex.question || ex.instruction || '').substring(0, 50)
+          : `${(ex.question || ex.instruction || '').substring(0, 50)}${res.hint ? ' — ' + res.hint : ''}`
+      } else if (ex.type === 'fill_blank') {
+        const details = res.evaluation?.details || []
+        const wrong = details.filter(d => !d.is_correct).map(d => `"${d.correct_answer}"`).join(', ')
+        message = isCorrect
+          ? (ex.instruction || '').substring(0, 50)
+          : `${(ex.instruction || '').substring(0, 50)} — Réponse(s) correcte(s) : ${wrong}`
+      } else {
+        message = (ex.instruction || ex.question || `Exercice ${idx + 1}`).substring(0, 60)
+        if (!isCorrect && res.hint) message += ' — ' + res.hint
+      }
+
+      results.push({ correct: isCorrect, message })
+    } catch (err) {
+      results.push({ correct: false, message: `Exercice ${idx + 1} : ${err.message}` })
+    }
   }
+
+  const total = exercises.value.length
+  const score = total > 0 ? Math.round((correctCount / total) * 100) : 0
+
+  exerciseResult.value = {
+    all_correct: correctCount === total,
+    score,
+    feedback: results,
+  }
+
+  submittingExercises.value = false
 }
 
 async function markComplete() {
