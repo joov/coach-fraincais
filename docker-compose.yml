@@ -19,6 +19,8 @@ services:
     environment:
       - DATABASE_URL=sqlite:///data/coach.db
       - WHISPER_URL=http://whisper:9000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   whisper:
     build: ./whisper

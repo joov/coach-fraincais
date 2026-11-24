@@ -35,7 +35,9 @@ async def generate_plan(
         }
     )
 
-    plan_data = await llm.chat_json(PLAN_SYSTEM_PROMPT, user_message)
+    plan_data = await llm.chat_json(PLAN_SYSTEM_PROMPT, user_message, max_tokens=16384)
+    if not plan_data.get("weeks"):
+        raise ValueError("Das Plan-Modell hat keinen gültigen Plan geliefert.")
 
     # Persist the plan
     plan = TrainingPlan(

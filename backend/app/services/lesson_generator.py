@@ -25,7 +25,7 @@ async def generate_lesson_content(session: Session, lesson: Lesson, level: str) 
         f"Student level: {level}"
     )
 
-    content = await llm.chat_json(system_prompt, user_message)
+    content = await llm.chat_json(system_prompt, user_message, local=True)
 
     lesson.dialogues = content.get("dialogues", {})
     lesson.grammar_box = content.get("grammar_box", {})
@@ -55,7 +55,7 @@ async def generate_exercises(session: Session, lesson: Lesson, level: str) -> Le
         f"Grammar focus: {lesson.grammar_focus}"
     )
 
-    content = await llm.chat_json(system_prompt, user_message)
+    content = await llm.chat_json(system_prompt, user_message, local=True)
 
     lesson.exercises = content.get("exercises", [])
 

@@ -33,21 +33,33 @@ async def startup():
     logger.info("Creating database tables...")
     create_db_and_tables()
 
-    logger.info("LLM-Provider: %s", settings.llm_api_base_url)
-    logger.info("LLM-Modell:   %s", settings.llm_model)
+    logger.info("Plan-Modell:  %s via %s", settings.llm_model, settings.llm_api_base_url)
+    logger.info("Lokal-Modell: %s via %s", settings.ollama_model, settings.ollama_api_base_url)
+
+    from .services import llm
 
     if not settings.llm_api_key:
-        logger.warning("LLM_API_KEY not set. Plan generation and exercise creation will not work.")
+        logger.warning("LLM_API_KEY not set. Training-plan generation will not work.")
     else:
-        from .services import llm
-
         result = await llm.test_connection()
         if result["status"] == "ok":
-            logger.info("LLM-Status: Connected (%dms)", result["response_time_ms"])
+            logger.info("Plan-LLM: Connected (%dms)", result["response_time_ms"])
         else:
-            logger.warning("LLM-Status: Connection failed: %s", result.get("error", "unknown"))
+            logger.warning("Plan-LLM: Connection failed: %s", result.get("error", "unknown"))
+
+    local = await llm.test_connection(local=True)
+    if local["status"] == "ok":
+        logger.info("Ollama: Connected (%dms)", local["response_time_ms"])
+    else:
+        logger.warning("Ollama: Connection failed: %s", local.get("error", "unknown"))
 
 
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "backend"}
+
+
+@app.get("/v1/models")
+async def list_models():
+    # OpenCode probes port 8000 for a local vLLM server. This is not that server.
+    return {"object": "list", "data": []}

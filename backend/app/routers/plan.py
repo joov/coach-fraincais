@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -31,16 +31,19 @@ async def create_plan(req: PlanCreateRequest, session: Session = Depends(get_ses
         session.add(user)
         session.commit()
 
-    plan = await generate_plan(
-        session=session,
-        user_id=user.id,
-        current_level=user.current_level,
-        target_level=req.target_level,
-        grammar_focus=req.grammar_focus,
-        topic_focus=req.topic_focus,
-        minutes_per_day=req.minutes_per_day,
-        days_per_week=req.days_per_week,
-    )
+    try:
+        plan = await generate_plan(
+            session=session,
+            user_id=user.id,
+            current_level=user.current_level,
+            target_level=req.target_level,
+            grammar_focus=req.grammar_focus,
+            topic_focus=req.topic_focus,
+            minutes_per_day=req.minutes_per_day,
+            days_per_week=req.days_per_week,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return {
         "id": plan.id,

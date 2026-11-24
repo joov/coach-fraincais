@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 
 from ..config import settings
 from ..database import get_session
+from ..llm_catalog import LLM_MODELS
 from ..models import User
 from ..services import llm
 
@@ -17,8 +18,20 @@ class UserSettingsRequest(BaseModel):
 
 class LLMSettingsRequest(BaseModel):
     llm_model: str | None = None
+    model: str | None = None
     llm_temperature: float | None = None
+    temperature: float | None = None
     llm_max_tokens: int | None = None
+    max_tokens: int | None = None
+
+    def resolved_model(self) -> str | None:
+        return self.llm_model if self.llm_model is not None else self.model
+
+    def resolved_temperature(self) -> float | None:
+        return self.llm_temperature if self.llm_temperature is not None else self.temperature
+
+    def resolved_max_tokens(self) -> int | None:
+        return self.llm_max_tokens if self.llm_max_tokens is not None else self.max_tokens
 
 
 @router.get("")
@@ -62,6 +75,11 @@ async def update_user_settings(
     return {"status": "ok", "user": {"name": user.name, "current_level": user.current_level}}
 
 
+@router.get("/llm/models")
+async def list_llm_models():
+    return {"models": LLM_MODELS}
+
+
 @router.get("/llm")
 async def get_llm_settings():
     return {
@@ -76,9 +94,9 @@ async def get_llm_settings():
 @router.put("/llm")
 async def update_llm_settings(req: LLMSettingsRequest):
     llm.update_runtime_settings(
-        model=req.llm_model,
-        temperature=req.llm_temperature,
-        max_tokens=req.llm_max_tokens,
+        model=req.resolved_model(),
+        temperature=req.resolved_temperature(),
+        max_tokens=req.resolved_max_tokens(),
     )
     return {
         "status": "ok",

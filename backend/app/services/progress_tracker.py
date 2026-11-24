@@ -92,5 +92,5 @@ async def get_error_analysis(session: Session, user_id: int, level: str) -> dict
     )
     user_message = f"Analyze the error history for a {level} student."
 
-    result = await llm.chat_json(system_prompt, user_message)
+    result = await llm.chat_json(system_prompt, user_message, local=True)
     return result

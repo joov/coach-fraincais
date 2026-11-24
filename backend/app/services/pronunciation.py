@@ -47,5 +47,5 @@ async def evaluate_pronunciation(
         f"Confidence: {confidence}"
     )
 
-    result = await llm.chat_json(system_prompt, user_message)
+    result = await llm.chat_json(system_prompt, user_message, local=True)
     return result

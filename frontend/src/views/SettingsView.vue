@@ -45,17 +45,28 @@
 
     <!-- LLM settings -->
     <section class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-5">
-      <h2 class="text-lg font-semibold text-gray-700">Modèle LLM</h2>
+      <h2 class="text-lg font-semibold text-gray-700">Modèle du plan</h2>
 
       <div>
-        <label for="llm-model" class="block text-sm font-medium text-gray-600 mb-1">Nom du modèle</label>
-        <input
+        <label for="llm-model" class="block text-sm font-medium text-gray-600 mb-1">Modèle</label>
+        <select
           id="llm-model"
-          v-model="llmForm.model"
-          type="text"
-          placeholder="gpt-4o-mini"
+          v-model="selectedModel"
           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+        >
+          <option v-for="model in models" :key="model.id" :value="model.id">
+            {{ model.name }} — {{ model.note }}
+          </option>
+          <option value="__custom">Autre modèle…</option>
+        </select>
+        <input
+          v-if="selectedModel === '__custom'"
+          v-model="customModel"
+          type="text"
+          placeholder="claude-sonnet-5-5"
+          class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
         />
+        <p class="mt-1 text-xs text-gray-500">ID Console, sans préfixe de fournisseur. Les modèles qui n'acceptent pas la température l'ignorent.</p>
       </div>
 
       <div class="grid grid-cols-2 gap-4">
@@ -106,10 +117,10 @@
       </div>
 
       <!-- Test result -->
-      <div v-if="testResult" class="rounded-lg p-4 text-sm" :class="testResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'">
-        <p class="font-medium">{{ testResult.success ? 'Connexion réussie' : 'Echec de la connexion' }}</p>
+      <div v-if="testResult" class="rounded-lg p-4 text-sm" :class="testResult.status === 'ok' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'">
+        <p class="font-medium">{{ testResult.status === 'ok' ? 'Connexion réussie' : 'Echec de la connexion' }}</p>
         <p v-if="testResult.message" class="mt-1">{{ testResult.message }}</p>
-        <p v-if="testResult.response" class="mt-1 text-xs font-mono bg-white/50 rounded p-2">{{ testResult.response }}</p>
+        <p v-if="testResult.error" class="mt-1">{{ testResult.error }}</p>
       </div>
     </section>
   </div>
@@ -124,6 +135,9 @@ const { get, put, post } = useApi()
 const userStore = useUserStore()
 
 const levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+const models = ref([])
+const selectedModel = ref('')
+const customModel = ref('')
 
 // User form
 const userForm = reactive({ name: '', current_level: '' })
@@ -163,11 +177,18 @@ async function saveLlmSettings() {
   savingLlm.value = true
   llmMsg.value = null
   try {
+    const model = selectedModel.value === '__custom' ? customModel.value.trim() : selectedModel.value
+    if (!model) {
+      llmMsg.value = 'Choisissez un modèle'
+      llmMsgType.value = 'error'
+      return
+    }
     await put('/settings/llm', {
-      model: llmForm.model,
-      temperature: llmForm.temperature,
-      max_tokens: llmForm.max_tokens,
+      llm_model: model,
+      llm_temperature: llmForm.temperature,
+      llm_max_tokens: llmForm.max_tokens,
     })
+    llmForm.model = model
     llmMsg.value = 'Paramètres LLM enregistrés'
     llmMsgType.value = 'success'
   } catch (err) {
@@ -185,7 +206,7 @@ async function testLlm() {
   try {
     testResult.value = await post('/settings/llm/test', {})
   } catch (err) {
-    testResult.value = { success: false, message: err.message }
+    testResult.value = { status: 'error', error: err.message }
   } finally {
     testingLlm.value = false
   }
@@ -193,20 +214,30 @@ async function testLlm() {
 
 onMounted(async () => {
   try {
-    const [settings, llmSettings] = await Promise.all([
+    const [settings, llmSettings, catalog] = await Promise.all([
       get('/settings').catch(() => null),
       get('/settings/llm').catch(() => null),
+      get('/settings/llm/models').catch(() => null),
     ])
-    if (settings) {
-      userForm.name = settings.name || ''
-      userForm.current_level = settings.current_level || ''
-      userStore.name = settings.name || ''
-      userStore.currentLevel = settings.current_level || ''
+    const user = settings?.user || settings
+    if (user) {
+      userForm.name = user.name || ''
+      userForm.current_level = user.current_level || ''
+      userStore.name = user.name || ''
+      userStore.currentLevel = user.current_level || ''
     }
+    models.value = catalog?.models || []
     if (llmSettings) {
       llmForm.model = llmSettings.model || ''
       llmForm.temperature = llmSettings.temperature ?? 0.7
       llmForm.max_tokens = llmSettings.max_tokens ?? 4096
+      const known = models.value.some((model) => model.id === llmForm.model)
+      if (known) {
+        selectedModel.value = llmForm.model
+      } else {
+        selectedModel.value = '__custom'
+        customModel.value = llmForm.model
+      }
     }
   } catch {
     // Silently ignore load errors — form will be empty

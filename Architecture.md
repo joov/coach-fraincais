@@ -35,7 +35,7 @@ Das System besteht aus drei Docker-Containern, orchestriert über Docker Compose
 ### Designprinzipien
 
 - **Sprache bleibt lokal:** TTS läuft im Browser (Web Speech API), STT läuft im Whisper-Container. Audiodaten verlassen nicht das lokale Netzwerk.
-- **LLM ist extern und konfigurierbar:** Trainingsplan-Generierung und Übungserstellung laufen über eine OpenAI-kompatible API. Das Modell ist frei wählbar (z.B. aus der OpenCode-Zen-Modellauswahl).
+- **Nur der Trainingsplan ist extern:** Lektionen, Übungen und Feedback laufen über Ollama auf dem Host (`OLLAMA_MODEL`, aktuell `gemma4`).
 - **Einzelnutzer-Betrieb:** Kein Auth, kein Multi-Tenancy. Lokales System für einen Lernenden.
 - **Vollständig containerisiert:** Ein einziges `docker compose up` startet das gesamte System.
 
@@ -154,9 +154,9 @@ Die Kommunikation mit dem LLM erfolgt über das **OpenAI Python SDK** mit konfig
 
 ```env
 # .env
-LLM_API_BASE_URL=https://api.opencode.ai/v1    # OpenCode Zen Endpunkt
+LLM_API_BASE_URL=https://opencode.ai/inference/openai/v1  # OpenCode Console
 LLM_API_KEY=sk-...                               # API-Key
-LLM_MODEL=anthropic/claude-sonnet-4              # Modellname (frei wählbar)
+LLM_MODEL=claude-sonnet-5-5                      # Modell-ID ohne Provider-Prefix
 LLM_TEMPERATURE=0.7                              # Kreativität
 LLM_MAX_TOKENS=4096                              # Max. Antwortlänge
 ```
@@ -571,7 +571,7 @@ Beim ersten Start legt der Nutzer die Datei `.env` im Projektverzeichnis an (Vor
 # 1. API-Endpunkt (Base-URL)
 #    Muss auf eine OpenAI-kompatible Chat-Completions-API zeigen.
 #    Der Pfad /chat/completions wird vom SDK automatisch angehängt.
-LLM_API_BASE_URL=https://openrouter.ai/api/v1
+LLM_API_BASE_URL=https://opencode.ai/inference/openai/v1
 
 # 2. API-Key
 #    Authentifizierung gegenüber dem Provider.
@@ -579,8 +579,8 @@ LLM_API_KEY=sk-your-key-here
 
 # 3. Modellname
 #    Exakt so, wie der Provider das Modell benennt.
-#    Bei OpenRouter z.B. "anthropic/claude-sonnet-4".
-LLM_MODEL=anthropic/claude-sonnet-4
+#    OpenCode Console ohne Prefix, z.B. "claude-sonnet-5-5".
+LLM_MODEL=claude-sonnet-5-5
 
 # 4. Generierungsparameter (Optional, Defaults siehe unten)
 LLM_TEMPERATURE=0.7       # 0.0 = deterministisch, 1.0 = kreativ
@@ -601,13 +601,13 @@ In der Weboberfläche gibt es unter **Einstellungen** eine LLM-Konfigurationssei
 ┌─────────────────────────────────────────────────┐
 │  Einstellungen > LLM-Konfiguration              │
 │                                                  │
-│  API-Endpunkt:  https://openrouter.ai/api/v1    │
+│  API-Endpunkt:  https://opencode.ai/inference/openai/v1 │
 │                 (nur per .env änderbar)          │
 │                                                  │
 │  API-Key:       sk-••••••••••••••••              │
 │                 (nur per .env änderbar)          │
 │                                                  │
-│  Modell:        [anthropic/claude-sonnet-4    ]  │
+│  Modell:        [claude-sonnet-5-5            ]  │
 │                                                  │
 │  Temperature:   [0.7____]                        │
 │  Max Tokens:    [4096___]                        │
@@ -629,9 +629,9 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # LLM
-    llm_api_base_url: str = "https://openrouter.ai/api/v1"
+    llm_api_base_url: str = "https://opencode.ai/inference/openai/v1"
     llm_api_key: str = ""
-    llm_model: str = "anthropic/claude-sonnet-4"
+    llm_model: str = "claude-sonnet-5-5"
     llm_temperature: float = 0.7
     llm_max_tokens: int = 4096
 
@@ -663,7 +663,7 @@ Die Laufzeit-Änderungen (Modell, Temperature, Max Tokens) werden in der SQLite-
 ```json
 PUT /api/settings/llm
 {
-    "llm_model": "openai/gpt-4o",
+    "llm_model": "gpt-6.2-sol",
     "llm_temperature": 0.5,
     "llm_max_tokens": 8192
 }
@@ -676,7 +676,7 @@ POST /api/settings/llm/test
 Response (Erfolg):
 {
     "status": "ok",
-    "model": "openai/gpt-4o",
+    "model": "gpt-6.2-sol",
     "response_time_ms": 842,
     "message": "Connexion réussie."
 }
@@ -694,10 +694,10 @@ Da das System das **OpenAI SDK** mit konfigurierbarer `base_url` nutzt, funktion
 
 | Provider | `LLM_API_BASE_URL` | Beispiel-Modelle |
 |---|---|---|
-| **OpenRouter** | `https://openrouter.ai/api/v1` | `anthropic/claude-sonnet-4`, `openai/gpt-4o`, `google/gemini-2.5-pro`, `meta-llama/llama-4-maverick` |
-| **OpenAI direkt** | `https://api.openai.com/v1` | `gpt-4o`, `gpt-4o-mini` |
-| **Anthropic (via Proxy)** | Über OpenRouter oder LiteLLM | `claude-sonnet-4`, `claude-sonnet-4-20250514` |
-| **Lokales Modell (Ollama)** | `http://host.docker.internal:11434/v1` | `llama3`, `mistral`, `gemma2` |
+| **OpenCode Console** | `https://opencode.ai/inference/openai/v1` | `claude-sonnet-5-5`, `claude-opus-5-5`, `gemini-4-argon`, `gpt-6.2-sol` |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | Provider-Prefix, z.B. `anthropic/claude-sonnet-5.5` |
+| **OpenAI direkt** | `https://api.openai.com/v1` | aktuelle OpenAI-ID, z.B. `gpt-6.2-sol` |
+| **Lokales Modell (Ollama)** | `http://host.docker.internal:11434/v1` | `gemma4` |
 | **Lokales Modell (LM Studio)** | `http://host.docker.internal:1234/v1` | Beliebiges geladenes Modell |
 
 ### Empfohlene Modelle nach Einsatzzweck
@@ -706,10 +706,10 @@ Nicht jede Aufgabe erfordert das gleiche Modell. Für die Zukunft ist eine **pro
 
 | Aufgabe | Anforderung | Empfehlung |
 |---|---|---|
-| Trainingsplan generieren | Strukturiertes Reasoning, JSON-Output | Großes Modell (Claude Sonnet, GPT-4o) |
-| Dialoge erstellen | Natürliches Französisch, kulturelle Nuancen | Großes Modell |
-| Übungen generieren | Korrektes Französisch, Grammatik-Wissen | Großes Modell |
-| Aussprache-Feedback | Textvergleich, kurze Antworten | Kleineres Modell reicht (GPT-4o-mini, Haiku) |
+| Trainingsplan generieren | Strukturiertes Reasoning, JSON-Output | `claude-sonnet-5-5` oder `claude-opus-5-5` |
+| Dialoge erstellen | Natürliches Französisch, kulturelle Nuancen | `claude-sonnet-5-5` oder `gemini-4-argon` |
+| Übungen generieren | Korrektes Französisch, Grammatik-Wissen | `claude-sonnet-5-5` |
+| Aussprache-Feedback | Textvergleich, kurze Antworten | `claude-haiku-5-5` oder `gpt-6-luna` |
 | Fehleranalyse | Mustererkennung über Fehlerliste | Mittleres Modell |
 
 ### Validierung beim Start
@@ -721,8 +721,8 @@ Beim Start des Backend-Containers prüft das System:
 3. **Verbindungstest:** Ein optionaler Health-Check (`GET /models` am API-Endpunkt) prüft, ob der Provider erreichbar ist. Bei Fehler wird geloggt, der Container startet aber trotzdem.
 
 ```
-[INFO]  LLM-Provider: https://openrouter.ai/api/v1
-[INFO]  LLM-Modell:   anthropic/claude-sonnet-4
+[INFO]  LLM-Provider: https://opencode.ai/inference/openai/v1
+[INFO]  LLM-Modell:   claude-sonnet-5-5
 [INFO]  LLM-Status:   ✅ Verbunden (Response: 203ms)
 ```
 
@@ -741,14 +741,14 @@ oder:
 # ── LLM-Konfiguration ──────────────────────────────
 # Endpunkt der OpenAI-kompatiblen API
 # Siehe Abschnitt "Kompatible Provider" für Beispiele.
-LLM_API_BASE_URL=https://openrouter.ai/api/v1
+LLM_API_BASE_URL=https://opencode.ai/inference/openai/v1
 
 # API-Key (vom Provider bereitgestellt)
 LLM_API_KEY=sk-your-key-here
 
-# Modellname (exakt wie vom Provider benannt)
-# Beispiele: anthropic/claude-sonnet-4, openai/gpt-4o, google/gemini-2.5-pro
-LLM_MODEL=anthropic/claude-sonnet-4
+# Modellname (exakt wie vom Provider benannt, ohne Prefix)
+# Beispiele: claude-sonnet-5-5, claude-opus-5-5, gemini-4-argon, gpt-6.2-sol
+LLM_MODEL=claude-sonnet-5-5
 
 # Generierungsparameter
 LLM_TEMPERATURE=0.7
